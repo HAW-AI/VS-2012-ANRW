@@ -1,5 +1,5 @@
 -module(client).
--export([start/2]).
+-export([start/1]).
 -author("Aleksandr Nosov, Raimund Wege").
 
 %% public function start
@@ -11,21 +11,33 @@ start(Server) ->
 loop({Server,Counter}) when Counter < 5 ->
 	Server ! {getmsgid, self()}, 
 	receive
+		timeout -> done;
 		Number -> 
-			Server ! {dropmessage,{message(Number), Number},
-			sleep(),
-			loop({Server,Counter+1})	
-	end.
+			Server ! {dropmessage,{message(Number), Number}},
+			sleep(200),
+			loop({Server,Counter+1})
+	end;
 %% Wenn counter >= 5 dann lese messages	
-loop({Server,Counter}) -> done.
+loop({Server,Counter}) -> 
+	Server ! {getmessages, self()}, 
+	receive
+		timeout -> done;
+		{Message,Terminated} -> 
+			werkzeug:logging("client.log","getmessages:"++Message++":"++atom_to_list(Terminated)++"\n")
+			%%if not Terminated ->
+			%%	loop({Server,Counter});
+			%%	true ->  loop({Server,0})
+			%%end	
+	end.
 
 %% Erstellt eine neue Nachricht mit der Number
 message(Number)->
-	"host-"++self()++"-3-11:"++integer_to_list(Number)++"te_Nachricht. Sendezeit: "++localtime()++";\n".
+	"host-"++"-3-11:"++integer_to_list(Number)++"te_Nachricht. Sendezeit: "++werkzeug:timeMilliSecond().
 
-%% Gibt localtime als Zeichenkette zuruck 	
-localtime() ->
-	{_,{Hour, Minutes, Seconds}} = erlang:localtime(),
-    integer_to_list(Hour)++":"++integer_to_list(Minutes)++":"++integer_to_list(Seconds).
-	
-sleep() -> kommtspaeter.
+%% Ist fur die Zeit T blockiert.	
+sleep(T) ->
+	receive
+	after
+		T ->
+			true
+	end.
