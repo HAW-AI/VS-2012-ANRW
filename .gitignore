@@ -4,3 +4,10 @@ priv
 *.o
 *.beam
 *.plt
+.DS_Store
+
+.project
+
+.settings/org.erlide.core.prefs
+
+manifest.mf
