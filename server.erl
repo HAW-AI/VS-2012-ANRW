@@ -1,30 +1,30 @@
 -module(server).
--export([start/1,checkclient/1,dropmessage/5]).
+-export([start/0,start/1,checkclient/1,dropmessage/5]).
 -author("Aleksandr Nosov, Raimund Wege").
 
+start() ->
+    start(tools:getServerConfigData()).
 %% public function start
-start(Name) ->
-	Timeout=20*1000,
-	MaxCountDQ=6,
-	ServerPID = spawn(fun() -> loop(1,dict:new(),dict:new(),dict:new(),Timeout,MaxCountDQ) end),
+start({Name,MaxCountDQ,Timeout,ReTime}) ->
+	ServerPID = spawn(fun() -> loop(1,dict:new(),dict:new(),dict:new(),Timeout*1000,MaxCountDQ,ReTime) end),
 	register(Name,ServerPID).
 	
-loop(MsgId,ClientDict,HQ,DQ,Timeout,MaxCountDQ) ->
+loop(MsgId,ClientDict,HQ,DQ,Timeout,MaxCountDQ,ReTime) ->
 	receive
 		{getmsgid, ClientID} -> 
 			ClientID ! MsgId,
 			werkzeug:logging("NServer.log","getmsgid: "++integer_to_list(MsgId)++" \n"),
-			loop(MsgId+1,ClientDict,HQ,DQ,Timeout,MaxCountDQ);
+			loop(MsgId+1,ClientDict,HQ,DQ,Timeout,MaxCountDQ,ReTime);
 		{dropmessage, {Message, Number}} ->
 			{NewHQ,NewDQ}=dropmessage(Number,Message,HQ,DQ,MaxCountDQ),
 			werkzeug:logging("NServer.log","dropmessage "++integer_to_list(Number)++":"++Message++".\n"),
-			loop(MsgId,ClientDict,NewHQ,NewDQ,Timeout,MaxCountDQ);
+			loop(MsgId,ClientDict,NewHQ,NewDQ,Timeout,MaxCountDQ,ReTime);
 		{getmessages, ClientID} ->
-			{NewClientDict,{LastMsgid,ClientTimer}}=checkclient({ClientDict,ClientID}),
+			{NewClientDict,{LastMsgid,ClientTimer}}=checkclient({ClientDict,ClientID},ReTime),
 			{MessageId,Message,Terminated} = getmessage(LastMsgid,DQ),
 			ClientID ! {Message,Terminated},
 			NewClientDict2=dict:store(ClientID,{MessageId,ClientTimer},NewClientDict),
-			loop(MsgId,NewClientDict2,HQ,DQ,Timeout,MaxCountDQ)
+			loop(MsgId,NewClientDict2,HQ,DQ,Timeout,MaxCountDQ,ReTime)
 	after
 		Timeout -> werkzeug:logging("NServer.log","server timeout.\n")
 	end.
@@ -39,7 +39,6 @@ dropmessage(Number,Message,HQ,DQ,MaxCountDQ) ->
 %% Erst DQ anpassen. =< weil minKey bzw. maxKey = 0, wenn HQ bzw. DQ leer sind.
 put_in_dq(MinKeyHQ,MaxKeyDQ,HQ,DQ,MaxCountDQ,HQSize,DQSize) when MaxCountDQ =:= DQSize ->
 	NewDQ=dict:erase(tools:minKey(dict:fetch_keys(DQ)),DQ),
-	werkzeug:logging("NServer.log","dict:erase.\n"),
 	put_in_dq(MinKeyHQ,MaxKeyDQ,HQ,NewDQ,MaxCountDQ,HQSize,DQSize-1);
 %%Nachricht in DQ ubertragen. 
 put_in_dq(MinKeyHQ,MaxKeyDQ,HQ,DQ,MaxCountDQ,HQSize,DQSize) when MaxKeyDQ+1 =:= MinKeyHQ, MaxCountDQ > DQSize ->
@@ -71,8 +70,9 @@ getmessage({ok,Message}) -> Message;
 getmessage(error) -> "undefined".
 
 %%Client in ClientDict prufen und ggf. eintragen mit LastTime und Msgid
-checkclient({ClientDict,ClientID}) ->
-	checkclient({dict:find(ClientID,ClientDict),ClientDict,ClientID});
+checkclient({ClientDict,ClientID},ReTime) ->
+	NewCDict=eraseold(ClientDict,ReTime),
+	checkclient({dict:find(ClientID,NewCDict),NewCDict,ClientID}).
 checkclient({error,ClientDict,ClientID}) ->
 	checkclient({{ok,{0,0}},ClientDict,ClientID});
 %%Zugrifszeit aktualisieren.
@@ -81,3 +81,6 @@ checkclient({{ok,ClientValue},ClientDict,ClientID}) ->
 	Value={Msgid,tools:localtime()},
 	NewDict=dict:store(ClientID,Value,ClientDict),
 	{NewDict,ClientValue}.
+eraseold(ClientDict,ReTime) ->
+	{_, Secs , _} = now(),
+	dict:filter(fun(_,{_,Time}) -> Secs-Time > ReTime end, ClientDict).

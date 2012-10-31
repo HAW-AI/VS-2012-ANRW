@@ -1,6 +1,24 @@
 -module(tools).
--export([minKey/1,maxKey/1,localtime/0,nextKey/2]).
+-export([minKey/1,maxKey/1,localtime/0,nextKey/2,getClientConfigData/0,getServerConfigData/0]).
 -author("Aleksandr Nosov").
+
+getClientConfigData() ->
+	{ok, Configurations} = file:consult("client.cfg"),
+	Clients = proplists:get_value(clients, Configurations),
+	Lifetime = proplists:get_value(lifetime, Configurations),
+	Servername = proplists:get_value(servername, Configurations),
+	Intervall = proplists:get_value(sendeintervall, Configurations),
+	{Clients, Lifetime, Servername, Intervall}.
+
+
+getServerConfigData() ->
+	{ok, Configurations} = file:consult("server.cfg"),
+	LiTime = proplists:get_value(lifetime, Configurations),
+	ReTime = proplists:get_value(clientlifetime, Configurations),
+	Servername = proplists:get_value(servername, Configurations),
+	DQ_limit = proplists:get_value(dlqlimit, Configurations),
+	%%Difftime = proplists:get_value(difftime, Configurations), keine Anhnung wofur man das braucht.
+	{Servername,DQ_limit,LiTime,ReTime}.
 
 minKey([]) -> 0;
 minKey([X,Y|Tail])-> minKey(X,Y,Tail);
