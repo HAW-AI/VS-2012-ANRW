@@ -4,8 +4,8 @@
 
 %% public function start
 start(Name) ->
-	Timeout=200*1000,
-	MaxCountDQ=5,
+	Timeout=20*1000,
+	MaxCountDQ=6,
 	ServerPID = spawn(fun() -> loop(1,dict:new(),dict:new(),dict:new(),Timeout,MaxCountDQ) end),
 	register(Name,ServerPID).
 	
@@ -24,7 +24,6 @@ loop(MsgId,ClientDict,HQ,DQ,Timeout,MaxCountDQ) ->
 			{MessageId,Message,Terminated} = getmessage(LastMsgid,DQ),
 			ClientID ! {Message,Terminated},
 			NewClientDict2=dict:store(ClientID,{MessageId,ClientTimer},NewClientDict),
-			werkzeug:logging("NServer.log","getmessages:"++Message++":"++integer_to_list(MessageId)++"\n"),
 			loop(MsgId,NewClientDict2,HQ,DQ,Timeout,MaxCountDQ)
 	after
 		Timeout -> werkzeug:logging("NServer.log","server timeout.\n")
@@ -40,6 +39,7 @@ dropmessage(Number,Message,HQ,DQ,MaxCountDQ) ->
 %% Erst DQ anpassen. =< weil minKey bzw. maxKey = 0, wenn HQ bzw. DQ leer sind.
 put_in_dq(MinKeyHQ,MaxKeyDQ,HQ,DQ,MaxCountDQ,HQSize,DQSize) when MaxCountDQ =:= DQSize ->
 	NewDQ=dict:erase(tools:minKey(dict:fetch_keys(DQ)),DQ),
+	werkzeug:logging("NServer.log","dict:erase.\n"),
 	put_in_dq(MinKeyHQ,MaxKeyDQ,HQ,NewDQ,MaxCountDQ,HQSize,DQSize-1);
 %%Nachricht in DQ ubertragen. 
 put_in_dq(MinKeyHQ,MaxKeyDQ,HQ,DQ,MaxCountDQ,HQSize,DQSize) when MaxKeyDQ+1 =:= MinKeyHQ, MaxCountDQ > DQSize ->
@@ -65,8 +65,7 @@ errorMessage(KeyHQ,KeyDQ) ->
 getmessage(LastMsgid,DQ)->
 	Key=tools:nextKey(LastMsgid,dict:fetch_keys(DQ)),
 	Message=getmessage(dict:find(Key,DQ)),
-	HasNext = dict:is_key(Key+1,DQ),
-	{Key,Message,HasNext == false}.
+	{Key,Message,not dict:is_key(Key+1,DQ)}.
 	
 getmessage({ok,Message}) -> Message;
 getmessage(error) -> "undefined".

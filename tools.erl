@@ -19,14 +19,15 @@ maxKey(X,Y,[]) when X < Y -> Y;
 maxKey(X,Y,[]) when X >= Y -> X.
 
 
-nextKey(X,Y,_,[Head|Tail]) when X < Y -> nextKey(X,Y,Head,Tail);
-nextKey(X,Y,Z,[Head|Tail]) when X > Y -> nextKey(X,Z,Head,Tail);
-nextKey(X,Y,Z,List) when X >= Y, X >= Z -> nextKey(X,List);
-nextKey(_,Y,Z,[]) when Y > Z -> Z;
-nextKey(_,Y,Z,[]) when Y < Z -> Y.
-nextKey(X,[Y,Z|Tail]) -> nextKey(X,Y,Z,Tail);
+nextKey(X,Y,Z,List) when X < Z, Z < Y   -> nextKey(X,Z,List);
+nextKey(X,Y,_,[Head|Tail]) -> nextKey(X,Y,Head,Tail);
+nextKey(_,Y,_,[]) -> Y.
+nextKey(X,Y,[]) when X < Y -> Y;
+nextKey(X,Y,[]) when X >= Y -> X;
+nextKey(X,Y,[Head|Tail]) when X >= Y -> nextKey(X,Head,Tail);
+nextKey(X,Y,[Head|Tail]) when X < Y -> nextKey(X,Y,Head,Tail).
+nextKey(X,[Head|Tail]) -> nextKey(X,Head,Tail);
 nextKey(_,[]) -> 0;
-nextKey(X,[Y|[]]) when X < Y -> Y;
 nextKey(_,_) -> 0.
 
 
