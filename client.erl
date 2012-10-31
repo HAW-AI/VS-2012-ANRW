@@ -19,7 +19,7 @@ start({Servername, Lifetime, Intervall, Clients}) ->
 %% Lifetime -> Lifetime des Clients in Sek.
 %% SleepTime -> SleepTime zwischen dem Senden in Sek.
 start(ClientID,{Hostname,Server, Lifetime, SleepTime}) ->
-	log("starte client "++integer_to_list(ClientID)++"~n",ClientID,Hostname),
+	log("starte client "++integer_to_list(ClientID)++"\n",ClientID,Hostname),
 	Client=spawn(fun() -> loop({ClientID,Hostname,Server,0,SleepTime*1000}) end),
 	spawn(fun() -> timer(Client,Lifetime*1000) end).
 	
@@ -27,7 +27,7 @@ start(ClientID,{Hostname,Server, Lifetime, SleepTime}) ->
 loop({ClientID,Hostname,Server,Counter,SleepTime}) when Counter < 5 ->
 	Server ! {getmsgid, self()}, 
 	receive
-		timeout -> log("client timeout~n",ClientID,Hostname);
+		timeout -> log("client timeout\n",ClientID,Hostname);
 		Number -> 
 			Server ! {dropmessage,{message(Number,Hostname), Number}},
 			NewSleepTime=randomSleepTime(SleepTime),
@@ -38,7 +38,7 @@ loop({ClientID,Hostname,Server,Counter,SleepTime}) when Counter < 5 ->
 loop({ClientID,Hostname,Server,Counter,SleepTime}) -> 
 	Server ! {getmessages, self()}, 
 	receive
-		timeout -> log("client timeout~n",ClientID,Hostname);
+		timeout -> log("client timeout\n",ClientID,Hostname);
 		{Message,Terminated} -> 
 			gotmessage({ClientID,Hostname,Server,Counter,SleepTime,Message,Terminated})
 	end.
@@ -48,10 +48,10 @@ timer(Client,T) ->
 		T -> Client ! timeout 
 	end.
 gotmessage({ClientID,Hostname,Server,Counter,SleepTime,Message,false}) ->
-	log("gotmessage: "++Message++"; Terminated: false\n",ClientID,Hostname),
+	log("client "++integer_to_list(ClientID)++" gotmessage: "++Message++"; Terminated: false\n",ClientID,Hostname),
 	loop({ClientID,Hostname,Server,Counter,SleepTime});
 gotmessage({ClientID,Hostname,Server,_,SleepTime,Message,_}) ->
-	log("getmessages:"++Message++":; Terminated: true\n",ClientID,Hostname),
+	log("client "++integer_to_list(ClientID)++" getmessage:"++Message++":; Terminated: true\n",ClientID,Hostname),
 	loop({ClientID,Hostname,Server,0,SleepTime}).
 	%%loop({Server,0}).
 %% Erstellt eine neue Nachricht mit der Number
