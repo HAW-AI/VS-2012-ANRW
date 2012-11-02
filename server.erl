@@ -42,23 +42,26 @@ put_in_dq(MinKeyHQ,MaxKeyDQ,HQ,DQ,MaxCountDQ,HQSize,DQSize) when MaxCountDQ =:= 
 	put_in_dq(MinKeyHQ,MaxKeyDQ,HQ,NewDQ,MaxCountDQ,HQSize,DQSize-1);
 %%Nachricht in DQ ubertragen. 
 put_in_dq(MinKeyHQ,MaxKeyDQ,HQ,DQ,MaxCountDQ,HQSize,DQSize) when MaxKeyDQ+1 =:= MinKeyHQ, MaxCountDQ > DQSize ->
+	%%werkzeug:logging("NServer.log","Nachricht"++integer_to_list(MinKeyHQ)++" in DQ wird uebertragen\n"),
 	{ok, Value} = dict:find(MinKeyHQ,HQ),
 	NewDQ=dict:append(MinKeyHQ,Value,DQ),
 	NewHQ=dict:erase(MinKeyHQ,HQ),
 	MinKey=tools:minKey(dict:fetch_keys(NewHQ)),
 	MaxKey=tools:maxKey(dict:fetch_keys(NewDQ)),
-	put_in_dq(MinKey,MaxKey,NewHQ,NewDQ,MaxCountDQ,HQSize,DQSize+1);
+	put_in_dq(MinKey,MaxKey,NewHQ,NewDQ,MaxCountDQ,HQSize-1,DQSize+1);
 %%Lucke schliessen. Danach mit naechster ID weiter machen.
 put_in_dq(MinKeyHQ,MaxKeyDQ,HQ,DQ,MaxCountDQ,HQSize,DQSize) when HQSize > MaxCountDQ/2, MaxCountDQ > DQSize ->
+	werkzeug:logging("NServer.log","Nachricht "++integer_to_list(MinKeyHQ-1)++"  fehlt\n"),
 	Value=errorMessage(MinKeyHQ-1,MaxKeyDQ+1),
-	NewDQ=dict:append(MaxKeyDQ+1,Value,DQ),
-	put_in_dq(MinKeyHQ,MaxKeyDQ+1,HQ,NewDQ,MaxCountDQ,HQSize,DQSize+1);
+	NewDQ=dict:append(MinKeyHQ-1,Value,DQ),
+	MaxKey=tools:maxKey(dict:fetch_keys(NewDQ)),
+	put_in_dq(MinKeyHQ,MaxKey,HQ,NewDQ,MaxCountDQ,HQSize,DQSize+1);
 %%sonst nichts machen.
 put_in_dq(_,_,HQ,DQ,_,_,_) -> 
 	{HQ,DQ}.
 
 errorMessage(KeyHQ,KeyDQ) ->
-	"***Fehlernachricht fuer Nachrichtennummern "++integer_to_list(KeyHQ)++" bis "++integer_to_list(KeyDQ)++" um "++werkzeug:timeMilliSecond()++";".
+	"***Fehlernachricht fuer Nachrichtennummern "++integer_to_list(KeyDQ)++" bis "++integer_to_list(KeyHQ)++" um "++werkzeug:timeMilliSecond()++";".
 
 %%Naechste Nachricht aus DQ
 getmessage(LastMsgid,DQ)->
@@ -74,7 +77,7 @@ checkclient({ClientDict,ClientID},ReTime) ->
 	NewCDict=eraseold(ClientDict,ReTime),
 	checkclient({dict:find(ClientID,NewCDict),NewCDict,ClientID}).
 checkclient({error,ClientDict,ClientID}) ->
-	checkclient({{ok,{0,0}},ClientDict,ClientID});
+	checkclient({{ok,{0,tools:localtime()}},ClientDict,ClientID});
 %%Zugrifszeit aktualisieren.
 checkclient({{ok,ClientValue},ClientDict,ClientID}) ->
 	{Msgid,_} = ClientValue,
@@ -83,4 +86,4 @@ checkclient({{ok,ClientValue},ClientDict,ClientID}) ->
 	{NewDict,ClientValue}.
 eraseold(ClientDict,ReTime) ->
 	{_, Secs , _} = now(),
-	dict:filter(fun(_,{_,Time}) -> Secs-Time > ReTime end, ClientDict).
+	dict:filter(fun(_,{_,Time}) ->Secs-Time < ReTime  end, ClientDict).

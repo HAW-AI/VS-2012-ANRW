@@ -1,18 +1,22 @@
 -module(client).
--export([start/0,randomSleepTime/1]).
+-export([start/1,start_without_PID/0,randomSleepTime/1]).
 -author("Aleksandr Nosov, Raimund Wege").
 
 %% public function start
-start()->
-    {Clients, Lifetime, Servername, Intervall} = tools:getClientConfigData(),
+start_without_PID() ->
+     {Clients, Lifetime, Servername, Intervall} = tools:getClientConfigData(),
 	start({Servername, Lifetime, Intervall, Clients}).
-start({Servername, Lifetime, Intervall, 1}) ->
+start({PID})->
+     {Clients, Lifetime, Servername, Intervall} = tools:getClientConfigData(),
+	Server={Servername,PID},	
+	start({Server, Lifetime, Intervall, Clients});
+start({Server, Lifetime, Intervall, 1}) ->
 	{ok, Hostname}=inet:gethostname(),
-    start(1,{Hostname,Servername, Lifetime, Intervall});
-start({Servername, Lifetime, Intervall, Clients}) ->
+    start(1,{Hostname,Server, Lifetime, Intervall});
+start({Server, Lifetime, Intervall, Clients}) ->
 	{ok, Hostname}=inet:gethostname(),
-    start(Clients,{Hostname,Servername, Lifetime, Intervall}),
-    start({Servername, Lifetime, Intervall, Clients-1}).
+    start(Clients,{Hostname,Server, Lifetime, Intervall}),
+    start({Server, Lifetime, Intervall, Clients-1}).
 
 %% Public start function
 %% Server - Server name wie z.B. myserver in server:start(myserver).
@@ -29,11 +33,17 @@ loop({ClientID,Hostname,Server,Counter,SleepTime}) when Counter < 5 ->
 	receive
 		timeout -> log("client timeout\n",ClientID,Hostname);
 		Number -> 
-			Server ! {dropmessage,{message(Number,Hostname), Number}},
+			%% mit einer Wahrscheinlikeit von 80%
+			Chance = random:uniform(100), 
+			if Chance > 20 -> 
+				Server ! {dropmessage,{message(Number,Hostname), Number}};
+				true -> log("Sende keine Nachricht\n",ClientID,Hostname)
+			end,
 			NewSleepTime=randomSleepTime(SleepTime),
 			sleep(NewSleepTime),
 			loop({ClientID,Hostname,Server,Counter+1,NewSleepTime})
 	end;
+
 %% Wenn counter >= 5 dann lese messages	
 loop({ClientID,Hostname,Server,Counter,SleepTime}) -> 
 	Server ! {getmessages, self()}, 
